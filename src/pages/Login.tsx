@@ -12,8 +12,9 @@ const Login: React.FC = () => {
 
   const roles = [
     { role: 'operator' as UserRole, label: '操作员', icon: User, description: '日常运营监控与数据查看' },
-    { role: 'leader' as UserRole, label: '考察组长', icon: Shield, description: '科考任务调度与物资审批' },
-    { role: 'headquarters' as UserRole, label: '总部指挥', icon: Crown, description: '全局指挥与决策分析' },
+    { role: 'leader' as UserRole, label: '考察组长', icon: Shield, description: '科考任务调度与一级物资审批' },
+    { role: 'headquarters' as UserRole, label: '总指挥', icon: Crown, description: '全局指挥与二级物资审批' },
+    { role: 'superior' as UserRole, label: '上级主管', icon: Crown, description: '最高决策与三级物资审批' },
   ];
 
   useEffect(() => {

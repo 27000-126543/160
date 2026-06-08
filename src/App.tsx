@@ -36,13 +36,13 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} />
         
-        <Route element={<ProtectedRoute allowedRoles={['operator', 'leader', 'headquarters']}><Layout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute allowedRoles={['operator', 'leader', 'headquarters', 'superior']}><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/weather" element={<Weather />} />
-          <Route path="/materials" element={<ProtectedRoute allowedRoles={['leader', 'headquarters']}><Materials /></ProtectedRoute>} />
-          <Route path="/emergency" element={<ProtectedRoute allowedRoles={['leader', 'headquarters']}><Emergency /></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute allowedRoles={['headquarters']}><Reports /></ProtectedRoute>} />
+          <Route path="/materials" element={<ProtectedRoute allowedRoles={['leader', 'headquarters', 'superior']}><Materials /></ProtectedRoute>} />
+          <Route path="/emergency" element={<ProtectedRoute allowedRoles={['leader', 'headquarters', 'superior']}><Emergency /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute allowedRoles={['headquarters', 'superior']}><Reports /></ProtectedRoute>} />
         </Route>
 
         <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />

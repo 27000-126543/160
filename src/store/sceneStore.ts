@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SceneState, EmergencyType, Emergency, EscapeRoute } from '../types';
+import { SceneState, EmergencyType, Emergency, EscapeRoute, EventType, EnvironmentalEvent, EnvironmentTimelineData } from '../types';
 
 const emergencyConfigs: Record<EmergencyType, Omit<Emergency, 'id' | 'createdAt'>> = {
   blizzard: {
@@ -79,6 +79,48 @@ const helicopterRoute: [number, number, number][] = [
   [20, 20, 40],
 ];
 
+const generateInitialTimeline = (): EnvironmentTimelineData[] => {
+  const data: EnvironmentTimelineData[] = [];
+  const now = new Date();
+  
+  for (let i = 24; i >= 0; i--) {
+    const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
+    const hour = timestamp.getHours();
+    const isNight = hour < 6 || hour > 20;
+    
+    data.push({
+      timestamp,
+      temperature: -40 + Math.random() * 15 - (isNight ? 10 : 0),
+      lightIntensity: isNight ? 0.1 + Math.random() * 0.1 : 0.4 + Math.random() * 0.5,
+      lightingPower: isNight ? 0.8 + Math.random() * 0.2 : 0.3 + Math.random() * 0.3,
+      heatingPower: isNight ? 0.7 + Math.random() * 0.3 : 0.4 + Math.random() * 0.2,
+      generatorActive: Math.random() > 0.9,
+    });
+  }
+  
+  return data;
+};
+
+const generateInitialEvents = (): EnvironmentalEvent[] => {
+  const now = new Date();
+  return [
+    {
+      id: 'evt-001',
+      type: 'polar_night_start',
+      timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+      value: 0.15,
+      description: '光照强度低于阈值，进入极夜模式',
+    },
+    {
+      id: 'evt-002',
+      type: 'generator_start',
+      timestamp: new Date(now.getTime() - 8 * 60 * 60 * 1000),
+      value: -52.5,
+      description: '温度低于-50°C，备用发电机启动',
+    },
+  ];
+};
+
 export const useSceneStore = create<SceneState>((set, get) => ({
   isPolarNight: false,
   lightingIntensity: 0.8,
@@ -87,6 +129,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   emergencyActive: false,
   currentEmergency: null,
   activeEmergencies: [],
+  environmentalEvents: generateInitialEvents(),
+  environmentTimeline: generateInitialTimeline(),
   escapeRoutes: initialEscapeRoutes,
   helicopterRoute: null,
   cameraTarget: [0, 10, 20],
@@ -96,6 +140,43 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       isPolarNight: !state.isPolarNight,
       lightingIntensity: !state.isPolarNight ? 0.3 : 0.8,
       heatingPower: !state.isPolarNight ? 0.8 : 0.5,
+    }));
+  },
+  
+  setPolarNight: (value: boolean) => {
+    set({
+      isPolarNight: value,
+      lightingIntensity: value ? 0.2 : 0.8,
+      heatingPower: value ? 0.9 : 0.5,
+    });
+  },
+  
+  setBackupGeneratorActive: (value: boolean) => {
+    set({ backupGeneratorActive: value });
+  },
+  
+  addEnvironmentalEvent: (type: EventType, value: number, description: string) => {
+    const event: EnvironmentalEvent = {
+      id: `evt-${Date.now()}`,
+      type,
+      timestamp: new Date(),
+      value,
+      description,
+    };
+    
+    set((state) => ({
+      environmentalEvents: [...state.environmentalEvents.slice(-49), event],
+    }));
+  },
+  
+  addEnvironmentTimelineData: (data: Omit<EnvironmentTimelineData, 'timestamp'>) => {
+    const newData: EnvironmentTimelineData = {
+      ...data,
+      timestamp: new Date(),
+    };
+    
+    set((state) => ({
+      environmentTimeline: [...state.environmentTimeline.slice(-24), newData],
     }));
   },
   
@@ -153,3 +234,27 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     }));
   },
 }));
+
+export const getEventLabel = (type: EventType): string => {
+  const labels: Record<EventType, string> = {
+    polar_night_start: '进入极夜',
+    polar_night_end: '解除极夜',
+    generator_start: '启动备用发电机',
+    generator_end: '关闭备用发电机',
+    extreme_cold_start: '极寒预警启动',
+    extreme_cold_end: '极寒预警解除',
+  };
+  return labels[type];
+};
+
+export const getEventColor = (type: EventType): string => {
+  const colors: Record<EventType, string> = {
+    polar_night_start: '#00D4FF',
+    polar_night_end: '#FFA502',
+    generator_start: '#FF4757',
+    generator_end: '#2ED573',
+    extreme_cold_start: '#FF4757',
+    extreme_cold_end: '#2ED573',
+  };
+  return colors[type];
+};

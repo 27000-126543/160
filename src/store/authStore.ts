@@ -13,7 +13,7 @@ const mockUsers: Record<UserRole, User> = {
   },
   leader: {
     id: '2',
-    name: '李队长',
+    name: '李考察组长',
     role: 'leader',
     faceData: 'face_data_002',
     lastLogin: new Date(),
@@ -23,6 +23,13 @@ const mockUsers: Record<UserRole, User> = {
     name: '王总指挥',
     role: 'headquarters',
     faceData: 'face_data_003',
+    lastLogin: new Date(),
+  },
+  superior: {
+    id: '4',
+    name: '赵上级主管',
+    role: 'superior',
+    faceData: 'face_data_004',
     lastLogin: new Date(),
   },
 };

@@ -22,11 +22,11 @@ const Sidebar: React.FC = () => {
   };
 
   const navItems = [
-    { path: '/dashboard', icon: LayoutDashboard, label: '运营总览', roles: ['operator', 'leader', 'headquarters'] },
-    { path: '/weather', icon: CloudSun, label: '气象调度', roles: ['operator', 'leader', 'headquarters'] },
-    { path: '/materials', icon: Package, label: '物资管理', roles: ['leader', 'headquarters'] },
-    { path: '/emergency', icon: AlertTriangle, label: '应急指挥', roles: ['leader', 'headquarters'] },
-    { path: '/reports', icon: FileSpreadsheet, label: '数据报表', roles: ['headquarters'] },
+    { path: '/dashboard', icon: LayoutDashboard, label: '运营总览', roles: ['operator', 'leader', 'headquarters', 'superior'] },
+    { path: '/weather', icon: CloudSun, label: '气象调度', roles: ['operator', 'leader', 'headquarters', 'superior'] },
+    { path: '/materials', icon: Package, label: '物资管理', roles: ['leader', 'headquarters', 'superior'] },
+    { path: '/emergency', icon: AlertTriangle, label: '应急指挥', roles: ['leader', 'headquarters', 'superior'] },
+    { path: '/reports', icon: FileSpreadsheet, label: '数据报表', roles: ['headquarters', 'superior'] },
   ];
 
   const filteredItems = navItems.filter(item => 

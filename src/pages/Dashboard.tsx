@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { Scene3D } from '../components/Scene/Scene3D';
 import { BuildingDetail } from '../components/UI/BuildingDetail';
 import { PersonnelPanel } from '../components/UI/PersonnelPanel';
+import { EnvironmentTimeline } from '../components/UI/EnvironmentTimeline';
 import { useBuildingStore } from '../store/buildingStore';
 import useRealTimeData from '../hooks/useRealTimeData';
+import { BarChart3, X } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   useRealTimeData();
   const { selectedBuilding } = useBuildingStore();
   const [showPersonnelPanel, setShowPersonnelPanel] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   return (
     <div className="w-full h-full relative overflow-hidden">
@@ -32,6 +35,30 @@ const Dashboard: React.FC = () => {
           className="absolute top-4 left-4 px-4 py-2 glass-panel rounded-lg text-polar-ice hover:bg-polar-ice/20 transition-colors z-10"
         >
           显示人员监控
+        </button>
+      )}
+
+      {showTimeline && (
+        <div className="absolute bottom-20 left-4 right-4 z-10">
+          <div className="relative">
+            <button
+              onClick={() => setShowTimeline(false)}
+              className="absolute top-2 right-2 p-1.5 bg-polar-deep/80 hover:bg-polar-deep rounded-lg text-polar-white/60 hover:text-polar-white transition-colors z-20"
+            >
+              <X size={16} />
+            </button>
+            <EnvironmentTimeline />
+          </div>
+        </div>
+      )}
+
+      {!showTimeline && (
+        <button
+          onClick={() => setShowTimeline(true)}
+          className="absolute bottom-4 left-4 px-4 py-2 glass-panel rounded-lg text-polar-ice hover:bg-polar-ice/20 transition-colors z-10 flex items-center gap-2"
+        >
+          <BarChart3 size={16} />
+          运营总览 · 环境时间线
         </button>
       )}
 

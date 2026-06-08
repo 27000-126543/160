@@ -201,6 +201,7 @@ export interface MaterialState {
   procurementHistory: ProcurementHistoryRecord[];
   selectedRequest: PurchaseRequest | null;
   historyFilter: MaterialType | 'all';
+  lastRejectedAt: Record<string, number>;
   updateMaterialData: () => void;
   createPurchaseRequest: (materialId: string, quantity: number) => void;
   autoGenerateLowStockRequests: () => void;

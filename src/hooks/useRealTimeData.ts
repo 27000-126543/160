@@ -31,6 +31,51 @@ const useRealTimeData = () => {
   const prevLightIntensity = useRef(currentWeather.lightIntensity);
   const prevTemperature = useRef(currentWeather.temperature);
   const timelineLastUpdate = useRef(0);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
+    if (currentWeather.temperature < TEMP_THRESHOLD_LOW && !backupGeneratorActive) {
+      useSceneStore.setState({ backupGeneratorActive: true });
+      addEnvironmentalEvent(
+        'generator_start',
+        currentWeather.temperature,
+        `初始温度低于${TEMP_THRESHOLD_LOW}°C，启动备用发电机`
+      );
+      addEnvironmentalEvent(
+        'extreme_cold_start',
+        currentWeather.temperature,
+        `初始极寒预警启动，当前温度${currentWeather.temperature.toFixed(1)}°C`
+      );
+    }
+
+    if (currentWeather.lightIntensity < LIGHT_THRESHOLD_LOW && !isPolarNight) {
+      useSceneStore.setState({ 
+        isPolarNight: true,
+        lightingIntensity: 0.2,
+        heatingPower: 0.9
+      });
+      addEnvironmentalEvent(
+        'polar_night_start',
+        currentWeather.lightIntensity,
+        `初始光照强度低于${LIGHT_THRESHOLD_LOW * 100}%，进入极夜模式`
+      );
+    }
+
+    addEnvironmentTimelineData({
+      temperature: currentWeather.temperature,
+      lightIntensity: currentWeather.lightIntensity,
+      lightingPower: lightingIntensity,
+      heatingPower: heatingPower,
+      generatorActive: backupGeneratorActive,
+    });
+    timelineLastUpdate.current = Date.now();
+
+    prevTemperature.current = currentWeather.temperature;
+    prevLightIntensity.current = currentWeather.lightIntensity;
+  }, []);
 
   useEffect(() => {
     const currentLight = currentWeather.lightIntensity;
@@ -123,7 +168,7 @@ const useRealTimeData = () => {
 
     const timelineInterval = setInterval(() => {
       const now = Date.now();
-      if (now - timelineLastUpdate.current >= 60000) {
+      if (now - timelineLastUpdate.current >= 10000) {
         addEnvironmentTimelineData({
           temperature: currentWeather.temperature,
           lightIntensity: currentWeather.lightIntensity,
@@ -133,7 +178,7 @@ const useRealTimeData = () => {
         });
         timelineLastUpdate.current = now;
       }
-    }, 10000);
+    }, 5000);
 
     return () => {
       clearInterval(buildingInterval);

@@ -23,16 +23,56 @@ export function EnvironmentTimeline() {
     const lightingPowerData = environmentTimeline.map(d => d.lightingPower * 100);
     const heatingPowerData = environmentTimeline.map(d => d.heatingPower * 100);
 
+    const isTempEventType = (eventType: string): boolean => {
+      return eventType.includes('temp') || eventType.includes('cold') || eventType.includes('generator');
+    };
+
+    const findExactPosition = (eventTime: number, eventType: string): { index: number; value: number } => {
+      for (let i = 1; i < environmentTimeline.length; i++) {
+        const prevTime = environmentTimeline[i - 1].timestamp.getTime();
+        const currTime = environmentTimeline[i].timestamp.getTime();
+        
+        if (eventTime >= prevTime && eventTime <= currTime) {
+          const ratio = (eventTime - prevTime) / (currTime - prevTime);
+          const prevTemp = tempData[i - 1];
+          const currTemp = tempData[i];
+          const prevLight = lightData[i - 1];
+          const currLight = lightData[i];
+          
+          const interpolatedTemp = prevTemp + (currTemp - prevTemp) * ratio;
+          const interpolatedLight = prevLight + (currLight - prevLight) * ratio;
+          
+          return {
+            index: i - 1 + ratio,
+            value: isTempEventType(eventType) ? interpolatedTemp : interpolatedLight,
+          };
+        }
+      }
+      
+      if (environmentTimeline.length > 0 && eventTime > environmentTimeline[environmentTimeline.length - 1].timestamp.getTime()) {
+        return {
+          index: environmentTimeline.length - 1,
+          value: isTempEventType(eventType) 
+            ? tempData[tempData.length - 1] 
+            : lightData[lightData.length - 1],
+        };
+      }
+      
+      return { index: 0, value: 0 };
+    };
+
     const recentEvents = environmentalEvents.slice(-10);
     
-    const markPoints = recentEvents.map(event => {
-      const eventIndex = environmentTimeline.findIndex(d => 
-        d.timestamp.getTime() >= event.timestamp.getTime()
-      );
+    const tempMarkPoints = [];
+    const lightMarkPoints = [];
+    
+    recentEvents.forEach(event => {
+      const pos = findExactPosition(event.timestamp.getTime(), event.type);
+      const isTempEvent = isTempEventType(event.type);
       
-      return {
+      const markPoint = {
         name: getEventLabel(event.type),
-        coord: eventIndex >= 0 ? [eventIndex, event.type.includes('temp') || event.type.includes('cold') || event.type.includes('generator') ? tempData[eventIndex] : lightData[eventIndex]] : [0, 0],
+        coord: [pos.index, pos.value],
         value: getEventLabel(event.type),
         itemStyle: {
           color: getEventColor(event.type),
@@ -44,7 +84,7 @@ export function EnvironmentTimeline() {
           color: getEventColor(event.type),
           fontSize: 10,
           padding: [2, 6],
-          backgroundColor: 'rgba(10, 25, 41, 0.9)',
+          backgroundColor: 'rgba(10, 25, 41, 0.95)',
           borderColor: getEventColor(event.type),
           borderWidth: 1,
           borderRadius: 4,
@@ -52,6 +92,12 @@ export function EnvironmentTimeline() {
         symbolSize: 12,
         symbol: 'circle',
       };
+      
+      if (isTempEvent) {
+        tempMarkPoints.push(markPoint);
+      } else {
+        lightMarkPoints.push(markPoint);
+      }
     });
 
     return {
@@ -138,9 +184,7 @@ export function EnvironmentTimeline() {
             ],
           },
           markPoint: {
-            data: markPoints.filter(mp => 
-              mp.name.includes('极寒') || mp.name.includes('发电机')
-            ),
+            data: tempMarkPoints,
             symbolSize: 10,
           },
         },
@@ -176,9 +220,7 @@ export function EnvironmentTimeline() {
             ],
           },
           markPoint: {
-            data: markPoints.filter(mp => 
-              mp.name.includes('极夜')
-            ),
+            data: lightMarkPoints,
             symbolSize: 10,
           },
         },

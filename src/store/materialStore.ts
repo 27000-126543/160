@@ -8,7 +8,9 @@ import {
   ProcurementStatus, 
   UserRole,
   ProcurementHistoryRecord,
-  ShippingInfo
+  ShippingInfo,
+  ShippingStage,
+  ShippingStageType,
 } from '../types';
 
 const initialMaterials: Material[] = [
@@ -50,6 +52,33 @@ const suppliers: Record<MaterialType, string[]> = {
   fuel: ['中国极地油料公司', '国际能源运输集团', '北极油品供应'],
   food: ['南极食品供应中心', '极地后勤保障部', '科考食品加工厂'],
   medicine: ['极地医疗物资中心', '国际红十字会', '南极医药供应'],
+};
+
+const SHIPPING_STAGES: { type: ShippingStageType; name: string; location: string }[] = [
+  { type: 'supplier_outbound', name: '供应商出库', location: '供应商仓库' },
+  { type: 'port_assembly', name: '港口集结', location: '上海港' },
+  { type: 'sea_transport', name: '海运', location: '南太平洋' },
+  { type: 'antarctic_station', name: '南极补给站', location: '中山站' },
+  { type: 'air_transport', name: '空运', location: '内陆空运' },
+  { type: 'arrived', name: '抵站', location: '科考站仓库' },
+];
+
+export const getStageLabel = (type: ShippingStageType): string => {
+  const stage = SHIPPING_STAGES.find(s => s.type === type);
+  return stage?.name || type;
+};
+
+export const getStageLocation = (type: ShippingStageType): string => {
+  const stage = SHIPPING_STAGES.find(s => s.type === type);
+  return stage?.location || '';
+};
+
+const createShippingStages = (): ShippingStage[] => {
+  return SHIPPING_STAGES.map(stage => ({
+    ...stage,
+    arrivedAt: null,
+    completed: false,
+  }));
 };
 
 export const getRoleLabel = (role: UserRole): string => {
@@ -96,6 +125,11 @@ const generateShippingInfo = (materialType: MaterialType): ShippingInfo => {
     shipmentBatch: `BATCH-${Date.now().toString(36).toUpperCase()}`,
     deliveryProgress: 0,
     currentLocation: '供应商仓库',
+    stages: createShippingStages(),
+    currentStage: 'supplier_outbound',
+    hasRisk: false,
+    riskReason: '',
+    expectedDelayDays: 0,
   };
 };
 
@@ -152,6 +186,22 @@ const generateInitialRequests = (): PurchaseRequest[] => {
         shipmentBatch: 'BATCH-2024-FOOD-001',
         deliveryProgress: 100,
         currentLocation: '科考站仓库',
+        stages: createShippingStages().map((s, i) => ({
+          ...s,
+          completed: true,
+          arrivedAt: new Date(now.getTime() - (18 - i * 3) * 24 * 60 * 60 * 1000),
+        })),
+        currentStage: 'arrived',
+        hasRisk: false,
+        riskReason: '',
+        expectedDelayDays: 0,
+        stockChange: {
+          beforeStock: 12000,
+          afterStock: 33600,
+          beforeDays: 100,
+          afterDays: 280,
+          changedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+        },
       },
     },
   ];
@@ -453,30 +503,54 @@ export const useMaterialStore = create<MaterialState>((set, get) => ({
       const request = state.purchaseRequests.find(r => r.id === requestId);
       if (!request) return state;
       
-      const updatedMaterials = state.materials.map((material) => {
-        if (material.id !== request.materialId) return material;
+      const material = state.materials.find(m => m.id === request.materialId);
+      const beforeStock = material?.currentStock || 0;
+      const beforeDays = material?.daysRemaining || 0;
+      
+      const updatedMaterials = state.materials.map((mat) => {
+        if (mat.id !== request.materialId) return mat;
         
-        const newStock = material.currentStock + request.quantity;
-        const daysRemaining = Math.floor(newStock / material.dailyConsumption);
+        const newStock = mat.currentStock + request.quantity;
+        const daysRemaining = Math.floor(newStock / mat.dailyConsumption);
         
         return {
-          ...material,
+          ...mat,
           currentStock: newStock,
           daysRemaining,
           lowStockAlert: daysRemaining < 90,
         };
       });
       
+      const updatedMaterial = updatedMaterials.find(m => m.id === request.materialId);
+      const afterStock = updatedMaterial?.currentStock || 0;
+      const afterDays = updatedMaterial?.daysRemaining || 0;
+      
+      const now = new Date();
+      const completedStages = request.shippingInfo?.stages.map(stage => ({
+        ...stage,
+        completed: true,
+        arrivedAt: stage.arrivedAt || now,
+      })) || createShippingStages().map(s => ({ ...s, completed: true, arrivedAt: now }));
+      
       const updatedRequests = state.purchaseRequests.map((r) => {
         if (r.id !== requestId) return r;
         return {
           ...r,
           status: 'delivered' as ProcurementStatus,
-          deliveredAt: new Date(),
+          deliveredAt: now,
           shippingInfo: r.shippingInfo ? {
             ...r.shippingInfo,
             deliveryProgress: 100,
             currentLocation: '科考站仓库',
+            currentStage: 'arrived' as const,
+            stages: completedStages,
+            stockChange: {
+              beforeStock,
+              afterStock,
+              beforeDays,
+              afterDays,
+              changedAt: now,
+            },
           } : undefined,
         };
       });
@@ -502,11 +576,22 @@ export const useMaterialStore = create<MaterialState>((set, get) => ({
     set((state) => {
       const updatedRequests = state.purchaseRequests.map((request) => {
         if (request.status === 'procuring' && request.shippingInfo) {
-          const newProgress = Math.min(100, request.shippingInfo.deliveryProgress + 3 + Math.random() * 4);
-          const locations = ['供应商仓库', '港口', '海运中', '南极补给站', '空运中', '科考站附近'];
-          const locationIndex = Math.min(locations.length - 1, Math.floor(newProgress / 20));
+          const progressIncrement = request.shippingInfo.hasRisk ? 1 + Math.random() * 2 : 3 + Math.random() * 4;
+          const newProgress = Math.min(100, request.shippingInfo.deliveryProgress + progressIncrement);
+          const stageIndex = Math.min(SHIPPING_STAGES.length - 1, Math.floor(newProgress / (100 / SHIPPING_STAGES.length)));
+          const newStage = SHIPPING_STAGES[stageIndex];
           
           const newStatus: ProcurementStatus = newProgress > 0 ? 'shipping' : 'procuring';
+          
+          const updatedStages = request.shippingInfo.stages.map((stage, index) => {
+            if (index < stageIndex && !stage.completed) {
+              return { ...stage, completed: true, arrivedAt: new Date() };
+            }
+            if (index === stageIndex && !stage.completed) {
+              return { ...stage, arrivedAt: new Date() };
+            }
+            return stage;
+          });
           
           return {
             ...request,
@@ -514,21 +599,36 @@ export const useMaterialStore = create<MaterialState>((set, get) => ({
             shippingInfo: {
               ...request.shippingInfo,
               deliveryProgress: Math.round(newProgress),
-              currentLocation: locations[locationIndex],
+              currentLocation: newStage.location,
+              currentStage: newStage.type,
+              stages: updatedStages,
             },
           };
         }
         if (request.status === 'shipping' && request.shippingInfo && request.shippingInfo.deliveryProgress < 100) {
-          const newProgress = Math.min(100, request.shippingInfo.deliveryProgress + 2 + Math.random() * 3);
-          const locations = ['供应商仓库', '港口', '海运中', '南极补给站', '空运中', '科考站附近'];
-          const locationIndex = Math.min(locations.length - 1, Math.floor(newProgress / 20));
+          const progressIncrement = request.shippingInfo.hasRisk ? 1 + Math.random() * 1.5 : 2 + Math.random() * 3;
+          const newProgress = Math.min(100, request.shippingInfo.deliveryProgress + progressIncrement);
+          const stageIndex = Math.min(SHIPPING_STAGES.length - 1, Math.floor(newProgress / (100 / SHIPPING_STAGES.length)));
+          const newStage = SHIPPING_STAGES[stageIndex];
+          
+          const updatedStages = request.shippingInfo.stages.map((stage, index) => {
+            if (index < stageIndex && !stage.completed) {
+              return { ...stage, completed: true, arrivedAt: new Date() };
+            }
+            if (index === stageIndex && !stage.arrivedAt) {
+              return { ...stage, arrivedAt: new Date() };
+            }
+            return stage;
+          });
           
           return {
             ...request,
             shippingInfo: {
               ...request.shippingInfo,
               deliveryProgress: Math.round(newProgress),
-              currentLocation: locations[locationIndex],
+              currentLocation: newStage.location,
+              currentStage: newStage.type,
+              stages: updatedStages,
             },
           };
         }
@@ -540,7 +640,38 @@ export const useMaterialStore = create<MaterialState>((set, get) => ({
         if (!updatedRequest) return record;
         const progressChanged = updatedRequest.shippingInfo?.deliveryProgress !== record.shippingInfo?.deliveryProgress;
         const statusChanged = updatedRequest.status !== record.status;
-        if (!statusChanged && !progressChanged) return record;
+        const riskChanged = updatedRequest.shippingInfo?.hasRisk !== record.shippingInfo?.hasRisk;
+        if (!statusChanged && !progressChanged && !riskChanged) return record;
+        return createHistoryRecord(updatedRequest, record.materialType);
+      });
+      
+      return {
+        purchaseRequests: updatedRequests,
+        procurementHistory: updatedHistory,
+      };
+    });
+  },
+  
+  updateShippingRisk: (requestId: string, hasRisk: boolean, riskReason: string, delayDays: number) => {
+    set((state) => {
+      const updatedRequests = state.purchaseRequests.map((request) => {
+        if (request.id !== requestId || !request.shippingInfo) return request;
+        
+        return {
+          ...request,
+          shippingInfo: {
+            ...request.shippingInfo,
+            hasRisk,
+            riskReason,
+            expectedDelayDays: delayDays,
+          },
+        };
+      });
+      
+      const updatedHistory = state.procurementHistory.map(record => {
+        if (record.requestId !== requestId) return record;
+        const updatedRequest = updatedRequests.find(r => r.id === requestId);
+        if (!updatedRequest) return record;
         return createHistoryRecord(updatedRequest, record.materialType);
       });
       

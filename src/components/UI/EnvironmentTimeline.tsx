@@ -24,7 +24,7 @@ export function EnvironmentTimeline() {
     const heatingPowerData = environmentTimeline.map(d => d.heatingPower * 100);
 
     const isTempEventType = (eventType: string): boolean => {
-      return eventType.includes('temp') || eventType.includes('cold') || eventType.includes('generator');
+      return eventType.includes('temp') || eventType.includes('cold') || eventType.includes('generator') || eventType.includes('supply');
     };
 
     const findExactPosition = (eventTime: number, eventType: string): { index: number; value: number } => {

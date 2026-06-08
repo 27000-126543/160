@@ -243,6 +243,8 @@ export const getEventLabel = (type: EventType): string => {
     generator_end: '关闭备用发电机',
     extreme_cold_start: '极寒预警启动',
     extreme_cold_end: '极寒预警解除',
+    supply_delay_start: '补给延误',
+    supply_delay_end: '补给恢复',
   };
   return labels[type];
 };
@@ -255,6 +257,8 @@ export const getEventColor = (type: EventType): string => {
     generator_end: '#2ED573',
     extreme_cold_start: '#FF4757',
     extreme_cold_end: '#2ED573',
+    supply_delay_start: '#FFA502',
+    supply_delay_end: '#2ED573',
   };
   return colors[type];
 };

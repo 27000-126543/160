@@ -9,6 +9,8 @@ const LIGHT_THRESHOLD_LOW = 0.2;
 const LIGHT_THRESHOLD_HIGH = 0.35;
 const TEMP_THRESHOLD_LOW = -50;
 const TEMP_THRESHOLD_HIGH = -45;
+const WIND_THRESHOLD = 20;
+const VISIBILITY_THRESHOLD = 2;
 
 const useRealTimeData = () => {
   const updateBuildingData = useBuildingStore(state => state.updateBuildingData);
@@ -19,19 +21,80 @@ const useRealTimeData = () => {
   const updateMaterialData = useMaterialStore(state => state.updateMaterialData);
   const autoGenerateLowStockRequests = useMaterialStore(state => state.autoGenerateLowStockRequests);
   const updateProcurementStatus = useMaterialStore(state => state.updateProcurementStatus);
+  const updateShippingRisk = useMaterialStore(state => state.updateShippingRisk);
   const updateEnvironmentalControls = useSceneStore(state => state.updateEnvironmentalControls);
   const addEnvironmentalEvent = useSceneStore(state => state.addEnvironmentalEvent);
   const addEnvironmentTimelineData = useSceneStore(state => state.addEnvironmentTimelineData);
   const currentWeather = useWeatherStore(state => state.currentWeather);
+  const windowSchedules = useWeatherStore(state => state.windowSchedules);
   const backupGeneratorActive = useSceneStore(state => state.backupGeneratorActive);
   const isPolarNight = useSceneStore(state => state.isPolarNight);
   const lightingIntensity = useSceneStore(state => state.lightingIntensity);
   const heatingPower = useSceneStore(state => state.heatingPower);
+  const purchaseRequests = useMaterialStore(state => state.purchaseRequests);
 
   const prevLightIntensity = useRef(currentWeather.lightIntensity);
   const prevTemperature = useRef(currentWeather.temperature);
   const timelineLastUpdate = useRef(0);
   const initialized = useRef(false);
+  const prevHasRisk = useRef(false);
+  const prevRiskReason = useRef('');
+
+  const checkShippingRisk = () => {
+    const isExtremeCold = currentWeather.temperature < TEMP_THRESHOLD_LOW;
+    const isBlizzard = currentWeather.windSpeed > WIND_THRESHOLD && currentWeather.visibility < VISIBILITY_THRESHOLD;
+    const hasInsufficientWindows = windowSchedules.length > 0 && windowSchedules.every(w => w.status === 'insufficient' || w.status === 'cancelled');
+
+    let hasRisk = false;
+    let riskReason = '';
+    let delayDays = 0;
+
+    if (isExtremeCold) {
+      hasRisk = true;
+      riskReason = '极寒天气';
+      delayDays = Math.max(delayDays, 3);
+    }
+    if (isPolarNight) {
+      hasRisk = true;
+      riskReason = riskReason ? `${riskReason}、极夜` : '极夜';
+      delayDays = Math.max(delayDays, 2);
+    }
+    if (isBlizzard) {
+      hasRisk = true;
+      riskReason = riskReason ? `${riskReason}、暴风雪` : '暴风雪';
+      delayDays = Math.max(delayDays, 5);
+    }
+    if (hasInsufficientWindows) {
+      hasRisk = true;
+      riskReason = riskReason ? `${riskReason}、作业窗口不足` : '作业窗口不足';
+      delayDays = Math.max(delayDays, 2);
+    }
+
+    const shippingRequests = purchaseRequests.filter(r => r.status === 'shipping' || r.status === 'procuring');
+
+    if (hasRisk !== prevHasRisk.current || riskReason !== prevRiskReason.current) {
+      shippingRequests.forEach(request => {
+        updateShippingRisk(request.id, hasRisk, riskReason, delayDays);
+      });
+
+      if (hasRisk && !prevHasRisk.current && shippingRequests.length > 0) {
+        addEnvironmentalEvent(
+          'supply_delay_start',
+          delayDays,
+          `补给延误：${riskReason}，预计延误${delayDays}天`
+        );
+      } else if (!hasRisk && prevHasRisk.current && shippingRequests.length > 0) {
+        addEnvironmentalEvent(
+          'supply_delay_end',
+          delayDays,
+          '补给恢复正常'
+        );
+      }
+
+      prevHasRisk.current = hasRisk;
+      prevRiskReason.current = riskReason;
+    }
+  };
 
   useEffect(() => {
     if (initialized.current) return;
@@ -75,6 +138,8 @@ const useRealTimeData = () => {
 
     prevTemperature.current = currentWeather.temperature;
     prevLightIntensity.current = currentWeather.lightIntensity;
+
+    checkShippingRisk();
   }, []);
 
   useEffect(() => {
@@ -162,6 +227,10 @@ const useRealTimeData = () => {
       updateProcurementStatus();
     }, 10000);
 
+    const riskCheckInterval = setInterval(() => {
+      checkShippingRisk();
+    }, 10000);
+
     const environmentInterval = setInterval(() => {
       updateEnvironmentalControls();
     }, 500);
@@ -185,10 +254,11 @@ const useRealTimeData = () => {
       clearInterval(personnelInterval);
       clearInterval(weatherInterval);
       clearInterval(materialInterval);
+      clearInterval(riskCheckInterval);
       clearInterval(environmentInterval);
       clearInterval(timelineInterval);
     };
-  }, [updateBuildingData, updatePersonnelData, checkDangerZones, updateWeatherData, calculateWindows, updateMaterialData, autoGenerateLowStockRequests, updateProcurementStatus, updateEnvironmentalControls, addEnvironmentTimelineData, currentWeather.temperature, currentWeather.lightIntensity, lightingIntensity, heatingPower, backupGeneratorActive]);
+  }, [updateBuildingData, updatePersonnelData, checkDangerZones, updateWeatherData, calculateWindows, updateMaterialData, autoGenerateLowStockRequests, updateProcurementStatus, updateShippingRisk, updateEnvironmentalControls, addEnvironmentalEvent, addEnvironmentTimelineData, currentWeather.temperature, currentWeather.lightIntensity, currentWeather.windSpeed, currentWeather.visibility, lightingIntensity, heatingPower, backupGeneratorActive, isPolarNight, windowSchedules, purchaseRequests]);
 };
 
 export default useRealTimeData;

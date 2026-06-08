@@ -124,7 +124,24 @@ export interface Material {
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ProcurementStatus = 'pending' | 'approved' | 'procuring' | 'shipping' | 'delivered' | 'rejected';
-export type EventType = 'polar_night_start' | 'polar_night_end' | 'generator_start' | 'generator_end' | 'extreme_cold_start' | 'extreme_cold_end';
+export type ShippingStageType = 'supplier_outbound' | 'port_assembly' | 'sea_transport' | 'antarctic_station' | 'air_transport' | 'arrived';
+export type EventType = 'polar_night_start' | 'polar_night_end' | 'generator_start' | 'generator_end' | 'extreme_cold_start' | 'extreme_cold_end' | 'supply_delay_start' | 'supply_delay_end';
+
+export interface ShippingStage {
+  type: ShippingStageType;
+  name: string;
+  location: string;
+  arrivedAt: Date | null;
+  completed: boolean;
+}
+
+export interface StockChange {
+  beforeStock: number;
+  afterStock: number;
+  beforeDays: number;
+  afterDays: number;
+  changedAt: Date;
+}
 
 export interface ShippingInfo {
   supplier: string;
@@ -132,6 +149,12 @@ export interface ShippingInfo {
   shipmentBatch: string;
   deliveryProgress: number;
   currentLocation: string;
+  stages: ShippingStage[];
+  currentStage: ShippingStageType;
+  hasRisk: boolean;
+  riskReason: string;
+  expectedDelayDays: number;
+  stockChange?: StockChange;
 }
 
 export interface PurchaseRequest {
@@ -214,6 +237,7 @@ export interface MaterialState {
   setHistoryFilter: (filter: MaterialType | 'all') => void;
   canApprove: (request: PurchaseRequest, role: UserRole) => boolean;
   updateProcurementStatus: () => void;
+  updateShippingRisk: (requestId: string, hasRisk: boolean, riskReason: string, delayDays: number) => void;
 }
 
 export type EmergencyType = 'blizzard' | 'avalanche' | 'equipment_failure' | 'medical';

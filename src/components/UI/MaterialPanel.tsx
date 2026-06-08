@@ -193,15 +193,79 @@ export function MaterialPanel() {
           </div>
         )}
 
+        {request.shippingInfo?.hasRisk && (
+          <div className="mt-3 p-3 bg-alert-red/10 border border-alert-red/30 rounded-lg">
+            <div className="flex items-center gap-2 text-alert-red">
+              <AlertTriangle size={14} />
+              <span className="text-sm font-medium">
+                运输风险预警：{request.shippingInfo.riskReason}
+              </span>
+              <span className="text-xs ml-auto">
+                预计延误 {request.shippingInfo.expectedDelayDays} 天
+              </span>
+            </div>
+          </div>
+        )}
+
+        {request.shippingInfo && request.shippingInfo.stages && (
+          <div className="mt-4">
+            <h6 className="text-xs font-medium text-polar-white/60 mb-3">运输轨迹</h6>
+            <div className="space-y-2">
+              {request.shippingInfo.stages.map((stage, index) => {
+                const isActive = index <= request.shippingInfo!.stages.findIndex(s => s.type === request.shippingInfo!.currentStage);
+                const isCurrent = stage.type === request.shippingInfo!.currentStage;
+                
+                return (
+                  <div key={stage.type} className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                      stage.completed 
+                        ? 'bg-safety-green/20 text-safety-green' 
+                        : isCurrent
+                        ? 'bg-polar-ice/20 text-polar-ice animate-pulse'
+                        : 'bg-polar-white/10 text-polar-white/30'
+                    }`}>
+                      {stage.completed ? '✓' : index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm ${
+                          stage.completed ? 'text-safety-green' : isCurrent ? 'text-polar-ice' : 'text-polar-white/30'
+                        }`}>
+                          {stage.name}
+                        </span>
+                        <span className="text-xs text-polar-white/50">
+                          {stage.location}
+                        </span>
+                      </div>
+                      {stage.arrivedAt && (
+                        <div className="text-xs text-polar-white/40 mt-0.5">
+                          {stage.arrivedAt.toLocaleString('zh-CN')}
+                        </div>
+                      )}
+                    </div>
+                    {index < request.shippingInfo.stages.length - 1 && (
+                      <div className={`w-px h-6 ${stage.completed ? 'bg-safety-green/30' : 'bg-polar-white/10'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {request.shippingInfo && request.status !== 'delivered' && (
-          <div className="mt-3">
+          <div className="mt-4">
             <div className="flex justify-between text-xs mb-1">
               <span className="text-polar-white/50">到货进度</span>
               <span className="text-polar-ice font-mono">{request.shippingInfo.deliveryProgress}%</span>
             </div>
             <div className="h-2 bg-polar-deep rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-polar-ice to-safety-green transition-all duration-500"
+                className={`h-full transition-all duration-500 ${
+                  request.shippingInfo.hasRisk 
+                    ? 'bg-gradient-to-r from-alert-red to-warning-orange' 
+                    : 'bg-gradient-to-r from-polar-ice to-safety-green'
+                }`}
                 style={{ width: `${request.shippingInfo.deliveryProgress}%` }}
               />
             </div>
@@ -226,7 +290,47 @@ export function MaterialPanel() {
           </button>
         )}
 
-        {request.status === 'delivered' && (
+        {request.status === 'delivered' && request.shippingInfo?.stockChange && (
+          <div className="mt-4 p-3 bg-safety-green/10 border border-safety-green/30 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <PackageCheck className="w-5 h-5 text-safety-green" />
+              <span className="text-sm text-safety-green font-medium">
+                已到货 · 入库时间: {request.deliveredAt?.toLocaleString('zh-CN')}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-polar-deep/50 rounded p-2">
+                <div className="text-polar-white/50">入库前库存</div>
+                <div className="text-polar-white font-mono">
+                  {request.shippingInfo.stockChange.beforeStock.toLocaleString()}
+                </div>
+              </div>
+              <div className="bg-polar-deep/50 rounded p-2">
+                <div className="text-polar-white/50">入库后库存</div>
+                <div className="text-safety-green font-mono">
+                  {request.shippingInfo.stockChange.afterStock.toLocaleString()}
+                </div>
+              </div>
+              <div className="bg-polar-deep/50 rounded p-2">
+                <div className="text-polar-white/50">入库前天数</div>
+                <div className="text-polar-white font-mono">
+                  {request.shippingInfo.stockChange.beforeDays} 天
+                </div>
+              </div>
+              <div className="bg-polar-deep/50 rounded p-2">
+                <div className="text-polar-white/50">入库后天数</div>
+                <div className="text-safety-green font-mono">
+                  {request.shippingInfo.stockChange.afterDays} 天
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-safety-green/80 text-center">
+              补给增加可用天数：+{request.shippingInfo.stockChange.afterDays - request.shippingInfo.stockChange.beforeDays} 天
+            </div>
+          </div>
+        )}
+
+        {request.status === 'delivered' && !request.shippingInfo?.stockChange && (
           <div className="mt-3 p-3 bg-safety-green/10 border border-safety-green/30 rounded-lg text-center">
             <PackageCheck className="w-5 h-5 text-safety-green mx-auto mb-1" />
             <span className="text-sm text-safety-green">
@@ -694,9 +798,31 @@ export function MaterialPanel() {
                     )}
 
                     {record.status === 'delivered' && (
-                      <div className="mt-3 flex items-center gap-2 text-xs text-safety-green">
-                        <CheckCircle size={12} />
-                        <span>采购完成 · 物资已入库，可用天数已恢复</span>
+                      <div>
+                        <div className="mt-3 flex items-center gap-2 text-xs text-safety-green mb-2">
+                          <CheckCircle size={12} />
+                          <span>采购完成 · 物资已入库</span>
+                        </div>
+                        {record.shippingInfo?.stockChange ? (
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-polar-deep/30 rounded p-2">
+                              <div className="text-polar-white/50">入库前可用</div>
+                              <div className="text-polar-white font-mono">
+                                {record.shippingInfo.stockChange.beforeDays} 天
+                              </div>
+                            </div>
+                            <div className="bg-polar-deep/30 rounded p-2">
+                              <div className="text-polar-white/50">入库后可用</div>
+                              <div className="text-safety-green font-mono">
+                                {record.shippingInfo.stockChange.afterDays} 天
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-polar-white/50">
+                            入库后可用天数已恢复至 90 天以上
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
